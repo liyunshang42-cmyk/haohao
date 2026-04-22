@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>相册集预览</title>
+    <style>
+        /* --- 🌸 梦幻少女风全局样式 --- */
+        :root { --theme-color: #ff85c0; --theme-sub: #ffb8db; --text-main: #5c3a4a; --text-sub: #997b8a; --border-color: #ffe0ef; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            font-family: -apple-system, sans-serif; 
+            background-color: #fff0f6;
+            background-image: radial-gradient(#ffd6e7 10%, transparent 10%), radial-gradient(#ffd6e7 10%, transparent 10%);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px;
+            color: var(--text-main); 
+            font-size: 14px; 
+            min-height: 100vh;
+        }
+        ::-webkit-scrollbar { display: none; }
+        
+        .app-container { max-width: 480px; margin: 0 auto; position: relative; overflow-x: hidden; min-height: 100vh;}
+
+        /* 毛玻璃效果组件 */
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px); }
+
+        .nav-bar { display: flex; justify-content: space-between; align-items: center; padding: 15px; position: sticky; top: 0; z-index: 100; font-weight: bold; font-size: 17px; box-shadow: 0 2px 10px rgba(255, 133, 192, 0.1); }
+        .nav-icons { font-size: 20px; display: flex; gap: 15px; align-items: center; cursor: pointer; color: var(--theme-color);}
+        
+        /* 魔法标题（点击3次登录） */
+        .magic-title { user-select: none; flex: 1; text-align: center; color: var(--theme-color); font-family: '楷体', cursive; font-size: 20px;}
+        
+        /* 返回主页的胶囊按钮 */
+        .capsule-btn { border: 1px solid var(--border-color); border-radius: 20px; padding: 4px 10px; display: flex; gap: 8px; font-size: 13px; align-items: center; cursor: pointer; background: white; color: var(--theme-color); }
+
+        /* 搜索框 */
+        .search-bar-wrap { padding: 12px 15px; }
+        .search-bar-input { width: 100%; background: white; padding: 12px 15px; border-radius: 20px; border: 2px solid var(--border-color); outline: none; text-align: center; color: var(--text-main); font-size: 14px; box-shadow: inset 0 2px 5px rgba(255,133,192,0.05); }
+        .search-bar-input:focus { border-color: var(--theme-color); }
+
+        /* 管理员控制台 */
+        .admin-controls { display: none; padding: 12px 15px; background: rgba(255, 230, 240, 0.9); border-bottom: 2px dashed var(--theme-color); flex-wrap: wrap; gap: 8px; align-items: center; }
+        .btn-sm { padding: 8px 14px; border-radius: 20px; font-size: 13px; border: none; cursor: pointer; font-weight: bold; display: inline-block; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-theme { background: linear-gradient(135deg, var(--theme-color), var(--theme-sub)); color: white; }
+        .btn-danger { background: #ff4d4f; color: white; }
+        .btn-edit { background: #faad14; color: white; }
+        .btn-info { background: #1890ff; color: white; }
+        
+        /* 相册列表 */
+        .album-list { padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        .album-card { border-radius: 15px; padding: 15px; display: flex; gap: 12px; align-items: center; box-shadow: 0 4px 15px rgba(255,133,192,0.15); cursor: pointer; border: 1px solid white; transition: 0.3s; }
+        .album-card:hover { transform: translateY(-2px); }
+        .album-cover { width: 90px; height: 90px; background: #ffe4e1; border-radius: 12px; object-fit: cover; border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0;}
+        .album-info { flex: 1; display: flex; flex-direction: column; gap: 6px; justify-content: center; overflow: hidden;}
+        .album-title { font-size: 18px; font-weight: bold; font-family: '楷体', cursive; color: var(--theme-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .album-date { font-size: 12px; color: var(--text-sub); }
+        
+        /* 🚨 新增：管理员专属的右侧操作按钮区 (改名+删除) */
+        .admin-card-actions { display: flex; flex-direction: column; gap: 8px; margin-left: auto; flex-shrink: 0;}
+        .btn-action-sm { padding: 6px 12px; border-radius: 8px; border: none; color: white; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-rename-album { background: #faad14; }
+        .btn-delete-album { background: #ff4d4f; }
+
+        /* 相册详情页 */
+        #view-detail { display: none; min-height: 100vh; }
+        
+        /* 横幅 */
+        .banner { background-color: #ffe4e1; background-size: cover; background-position: center; min-height: 240px; display: flex; align-items: center; justify-content: center; position: relative; }
+        .banner-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.3); z-index: 1; }
+        .banner-content { position: relative; z-index: 2; text-align: center; width: 90%; background: rgba(255,255,255,0.7); padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);}
+        .banner-text { font-size: 18px; color: var(--theme-color); font-weight: bold; line-height: 1.6; font-family: '楷体', cursive; }
+        
+        .detail-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid var(--border-color); }
+        .detail-title { font-size: 19px; font-weight: bold; font-family: '楷体', cursive; color: var(--theme-color); }
+        
+        .tabs { display: flex; border-bottom: 2px solid var(--border-color); padding: 0 15px; position: relative; }
+        .tab-item { flex: 1; text-align: center; padding: 15px 0; color: var(--text-sub); font-size: 15px; cursor: pointer; }
+        .tab-item.active { color: var(--theme-color); font-weight: bold; border-bottom: 3px solid var(--theme-color); }
+        .tab-content { display: none; padding: 15px; }
+        .tab-content.active { display: block; }
+
+        /* 动态区 */
+        .feed-header { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color); }
+        .user-name { font-weight: bold; font-size: 15px; color: var(--text-main); }
+        .post-time { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+        
+        .feed-description-box { margin-bottom: 15px; font-size: 15px; line-height: 1.6; color: var(--text-main); background: rgba(255,255,255,0.6); padding: 10px; border-radius: 10px;}
+        .admin-edit-desc-btn { color: var(--theme-color); font-size: 13px; cursor: pointer; margin-left: 10px; display: none; background: #fff0f6; padding: 4px 10px; border-radius: 15px;}
+
+        /* 网格照片区 */
+        .grid-9 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+        .grid-item-wrap { position: relative; width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 8px; border: 1px solid var(--border-color);}
+        .grid-img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; display: block;}
+        .video-mark::after { content: "▶"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 28px; text-shadow: 0 0 8px rgba(0,0,0,0.8); pointer-events: none; }
+        
+        .del-item-btn-text { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(255, 77, 79, 0.9); color: white; text-align: center; font-size: 13px; padding: 6px 0; cursor: pointer; display: none; font-weight: bold;}
+
+        /* 底部互动区：点赞与评论 */
+        .feed-actions { display: flex; justify-content: space-between; align-items: center; color: var(--text-sub); border-top: 1px dashed var(--border-color); padding-top: 15px; margin-top: 10px;}
+        .action-btns-right { display: flex; gap: 20px; }
+        .action-btn { cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 15px; }
+        .like-btn.liked { color: #ff4d4f; }
+        
+        .interaction-area { background: rgba(255, 255, 255, 0.7); padding: 12px; border-radius: 10px; margin-top: 12px; font-size: 13px; border: 1px solid var(--border-color);}
+        .like-users { color: var(--theme-color); font-weight: bold; margin-bottom: 8px; border-bottom: 1px dashed var(--border-color); padding-bottom: 8px; display: none;}
+        .comment-item { margin-top: 6px; color: var(--text-main); line-height: 1.5; }
+        .comment-name { color: var(--theme-color); font-weight: bold; }
+
+        /* 上传包装器 */
+        .upload-wrapper { position: relative; overflow: hidden; display: inline-block; margin-bottom: 15px;}
+        .upload-wrapper input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+
+        /* 模态框 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+        .modal-content { background: white; width: 100%; max-width: 400px; border-radius: 20px; padding: 25px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .modal-content h3 { color: var(--theme-color); }
+        input.text-input, textarea { width: 100%; padding: 12px; background: #fff0f6; border: 1px solid var(--border-color); border-radius: 12px; outline: none; margin-bottom: 15px; font-family: inherit; color: var(--text-main); }
+        textarea { height: 100px; resize: none; }
+        .modal-actions { display: flex; gap: 15px; margin-top: 10px;}
+        .modal-actions button { flex: 1; padding: 12px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; font-size: 14px;}
+        
+        .msg-list-item { background: #fff0f6; padding: 12px; border-radius: 12px; margin-bottom: 10px; font-size: 13px; border: 1px solid var(--border-color);}
+        .msg-time { font-size: 12px; color: #999; margin-bottom: 5px; }
+
+        /* 全屏查看器 */
+        #media-viewer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 2000; flex-direction: column; justify-content: center; align-items: center; }
+        #media-content { max-width: 100%; max-height: 80vh; object-fit: contain;}
+        .close-viewer { position: absolute; top: 20px; right: 20px; color: white; font-size: 35px; cursor: pointer; }
+        .viewer-hint { color: #fff; font-size: 13px; margin-top: 20px; background: rgba(255,255,255,0.2); padding: 8px 15px; border-radius: 20px;}
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <div id="view-home">
+        <div class="nav-bar glass-panel">
+            <div class="nav-icons" style="visibility: hidden;">🏠</div>
+            <div class="magic-title" onclick="secretLogin()">相册集预览</div>
+            <div style="width:20px;"></div>
+        </div>
+
+        <div class="admin-controls glass-panel" id="admin-panel">
+            <div style="width: 100%; margin-bottom:5px; display: flex; justify-content: space-between;">
+                <span style="color:var(--theme-color); font-weight:bold; font-size:15px;">👑 站长后台管理</span>
+                <span style="color:#999; font-size:13px; cursor:pointer;" onclick="logoutAdmin()">退出登录</span>
+            </div>
+            <button class="btn-sm btn-theme" onclick="openModal('modal-create-album')">＋ 新建相册</button>
+            <button class="btn-sm btn-edit" onclick="openModal('modal-edit-profile')">⚙️ 资料</button>
+            <button class="btn-sm btn-info" onclick="openMessages()">📬 留言箱</button>
+            <button class="btn-sm btn-danger" onclick="changePassword()">🔐 改密</button>
+        </div>
+        
+        <div class="search-bar-wrap">
+            <input type="text" class="search-bar-input" id="search-input" placeholder="🔍 输入相册名字搜索..." oninput="searchAlbums()">
+        </div>
+
+        <div class="album-list" id="album-list-container">
+            </div>
+    </div>
+
+    <div id="view-detail" class="glass-panel">
+        <div class="nav-bar">
+            <div class="nav-icons" onclick="goBack()">＜</div>
+            <div class="magic-title">相册内容</div>
+            <div class="capsule-btn" onclick="goBack()"><span>🏠</span> <span>返回主页</span></div>
+        </div>
+
+        <div class="banner" id="album-banner">
+            <div class="banner-overlay"></div>
+            <div class="banner-content">
+                <div class="banner-text" id="banner-text-display">☁️✨ 爱你们 👼</div>
+            </div>
+        </div>
+
+        <div id="admin-banner-edit" style="display:none; text-align:center; padding:10px; background:#fff0f6;">
+            <button class="btn-sm btn-edit" onclick="openModal('modal-edit-banner')">✍️ 修改横幅文字和背景图</button>
+        </div>
+
+        <div class="detail-header">
+            <div class="detail-title" id="detail-title-text">相册标题</div>
+            <div style="font-size: 26px; cursor: pointer;" onclick="openModal('modal-message')">💬</div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab-item active" onclick="switchTab(0)">全部动态</div>
+            <div class="tab-item" onclick="switchTab(1)">关于分享</div>
+        </div>
+
+        <div class="tab-content active" id="tab-dynamic">
+            
+            <div id="admin-upload-btn" style="display:none; margin-bottom:15px; text-align:center;">
+                <div class="upload-wrapper">
+                    <button class="btn-sm btn-theme" style="padding:12px 25px; font-size:14px; border-radius: 30px;">📤 点击上传照片或视频</button>
+                    <input type="file" accept="image/*,video/*" onchange="handleUpload(event)">
+                </div>
+            </div>
+
+            <div>
+                <div class="feed-header">
+                    <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=Princess" class="avatar" id="feed-avatar">
+                    <div>
+                        <div class="user-name" id="feed-username">管理员</div>
+                        <div class="post-time" id="album-date-text">时间</div>
+                    </div>
+                </div>
+
+                <div class="feed-description-box">
+                    <span id="feed-desc-text">这里可以写点什么...</span>
+                    <span class="admin-edit-desc-btn" id="btn-edit-desc" onclick="openModal('modal-edit-desc')">✎ 修改配文</span>
+                </div>
+
+                <div class="grid-9" id="media-grid"></div>
+                
+                <div class="feed-actions">
+                    <span style="font-size:12px; color:var(--theme-color);">✨ 梦幻图鉴记录</span>
+                    <div class="action-btns-right">
+                        <div class="action-btn" onclick="addComment()">💬 评论</div>
+                        <div class="action-btn like-btn" id="like-btn" onclick="toggleLike()">
+                            <span id="like-icon">🤍</span> 喜欢
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="interaction-area" id="interaction-area" style="display:none;">
+                    <div class="like-users" id="like-users-box">♡ <span id="like-names"></span></div>
+                    <div id="comments-list-box"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-share" style="text-align:center; padding-top:20px;">
+            <div id="share-img-display" style="width: 250px; height: 250px; margin: 0 auto 20px; background: #fff0f6; border: 2px dashed var(--theme-sub); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 50px; cursor: pointer; overflow: hidden;">
+                🔗
+            </div>
+            <p style="color:var(--text-sub); font-size:12px; margin-bottom:20px;">(点击图片放大后可长按保存)</p>
+            
+            <div id="admin-share-upload" style="display:none; margin-bottom:20px;">
+                <div class="upload-wrapper" style="width: 80%;">
+                    <button class="btn-sm btn-edit" style="width: 100%; padding:10px;">📸 上传专属海报/二维码</button>
+                    <input type="file" accept="image/*" onchange="uploadShareImg(event)">
+                </div>
+            </div>
+
+            <button class="btn-sm btn-theme" style="width:80%; padding:12px; margin-bottom:15px; border-radius:30px;" onclick="alert('请点击上方图片，放大后长按即可保存哦！')">保存图片</button>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal-overlay" id="modal-edit-profile">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">修改站长资料</h3>
+        <p style="font-size:12px; color:#666;">你的昵称：</p>
+        <input type="text" id="edit-profile-name" class="text-input" placeholder="例如: 某某的图鉴">
+        <p style="font-size:12px; color:#666;">更换头像：</p>
+        <div class="upload-wrapper" style="width:100%; text-align:center;">
+            <button class="btn-sm btn-theme" style="width:100%; padding:10px;">更换头像</button>
+            <input type="file" accept="image/*" onchange="previewProfileAvatar(event)">
+        </div>
+        <p id="profile-avatar-hint" style="font-size:12px; color:var(--theme-color); text-align:center; display:none;">✅ 头像已选择</p>
+        <div class="modal-actions" style="margin-top:20px;">
+            <button style="background:#eee; color:#333;" onclick="closeModal('modal-edit-profile')">取消</button>
+            <button class="btn-theme" onclick="saveProfile()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-create-album">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">新建相册</h3>
+        <input type="text" id="new-album-title" class="text-input" placeholder="输入相册名字 (如: 我的自拍记录)">
+        <div class="modal-actions">
+            <button style="background:#eee; color:#333;" onclick="closeModal('modal-create-album')">取消</button>
+            <button class="btn-theme" onclick="createNewAlbum()">创建</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-rename-album">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">修改相册名字</h3>
+        <input type="text" id="rename-album-input" class="text-input" placeholder="输入新的相册名字">
+        <div class="modal-actions">
+            <button style="background:#eee; color:#333;" onclick="closeModal('modal-rename-album')">取消</button>
+            <button class="btn-theme" onclick="saveAlbumName()">保存名字</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-view-messages">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">📬 留言箱</h3>
+        <div id="messages-list-container" style="max-height: 50vh; overflow-y: auto;"></div>
+        <div class="modal-actions" style="margin-top:20px;">
+            <button style="background:#eee; color:#333; width:100%;" onclick="closeModal('modal-view-messages')">关闭</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-edit-banner">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">修改横幅装扮</h3>
+        <textarea id="edit-banner-textarea" placeholder="输入文字，例如: ☁️✨ 爱你们 👼"></textarea>
+        <div class="upload-wrapper" style="width:100%; text-align:center;">
+            <button class="btn-sm btn-theme" style="width:100%; padding:10px;">🏞️ 选择大背景图</button>
+            <input type="file" accept="image/*" onchange="previewBannerBg(event)">
+        </div>
+        <p id="bg-upload-hint" style="font-size:12px; color:var(--theme-color); text-align:center; display:none;">✅ 图片已选择</p>
+        <div class="modal-actions" style="margin-top:20px;">
+            <button style="background:#eee; color:#333;" onclick="closeModal('modal-edit-banner')">取消</button>
+            <button class="btn-theme" onclick="saveBannerSettings()">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-edit-desc">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">修改动态配文</h3>
+        <textarea id="edit-desc-textarea" placeholder="输入想说的话，如：今天这顿好好吃..."></textarea>
+        <div class="modal-actions">
+            <button style="background:#eee; color:#333;" onclick="closeModal('modal-edit-desc')">取消</button>
+            <button class="btn-theme" onclick="saveDescSettings()">保存修改</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-message">
+    <div class="modal-content">
+        <h3 style="margin-bottom:15px; text-align:center;">给站长发送私信</h3>
+        <textarea id="msg-content" placeholder="写下你的留言或需求..."></textarea>
+        <input type="text" id="msg-contact" class="text-input" placeholder="你的联系方式 (如微信号, 选填)">
+        <div class="modal-actions">
+            <button style="background:#eee; color:#333;" onclick="closeModal('modal-message')">取消</button>
+            <button class="btn-theme" onclick="submitMessage()">发送</button>
+        </div>
+    </div>
+</div>
+
+<div id="media-viewer">
+    <div class="close-viewer" onclick="closeViewer()">×</div>
+    <div id="viewer-container" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;"></div>
+    <div class="viewer-hint">📱 长按图片可保存 / 💻 电脑右键保存</div>
+</div>
+
+<script>
+    // --- 数据初始化 V11 (重置数据避免报错) ---
+    const defaultBannerText = "☁️✨ 欢迎来到我的图鉴 👼";
+    let albums = JSON.parse(localStorage.getItem('wechatAppDataV11')) || [];
+    let isAdmin = localStorage.getItem('wechatAdminStateV11') === 'true';
+    let globalMessages = JSON.parse(localStorage.getItem('wechatMessagesV11')) || [];
+    let adminProfile = JSON.parse(localStorage.getItem('wechatProfileV11')) || { name: '专属站长', avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Princess' };
+
+    let currentAlbumId = null;
+    let targetRenameId = null; // 用于记录当前正在改名哪个相册
+    let visitorName = "可爱访客"; 
+    let tempBannerBgBase64 = null;
+    let tempAvatarBase64 = null;
+
+    updateAppView();
+
+    // --- 🕵️ 魔法隐藏登录逻辑 ---
+    let clickCount = 0;
+    let clickTimer = null;
+    function secretLogin() {
+        if (isAdmin) return; 
+        clickCount++;
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => { clickCount = 0; }, 1000); 
+        
+        if (clickCount >= 3) {
+            clickCount = 0;
+            let pwd = prompt("🌸 发现秘密入口！请输入站长密码 (初始密码为 123)：");
+            if (pwd !== null) {
+                let realPwd = localStorage.getItem('wechatAdminPwdV11') || '123';
+                if (pwd === realPwd) {
+                    isAdmin = true;
+                    localStorage.setItem('wechatAdminStateV11', 'true');
+                    alert("👑 魔法验证成功！所有管理功能已开启。");
+                    updateAppView();
+                } else {
+                    alert("❌ 密码不对哦~");
+                }
+            }
+        }
+    }
+
+    function logoutAdmin() {
+        isAdmin = false;
+        localStorage.setItem('wechatAdminStateV11', 'false');
+        alert("已退出管理模式，现在是纯净的游客视角~");
+        updateAppView();
+    }
+
+    function changePassword() {
+        let currentPwd = localStorage.getItem('wechatAdminPwdV11') || '123';
+        let oldPwd = prompt("请输入【当前】密码：");
+        if (oldPwd === currentPwd) {
+            let newPwd = prompt("请输入【新密码】：");
+            if (newPwd && newPwd.trim() !== '') {
+                localStorage.setItem('wechatAdminPwdV11', newPwd);
+                alert("✅ 密码修改成功！下次请用新密码登录。");
+            }
+        } else if (oldPwd !== null) {
+            alert("❌ 密码错误。");
+        }
+    }
+
+    function updateAppView() {
+        document.getElementById('admin-panel').style.display = isAdmin ? 'flex' : 'none';
+        document.getElementById('admin-upload-btn').style.display = isAdmin ? 'block' : 'none';
+        document.getElementById('admin-banner-edit').style.display = isAdmin ? 'block' : 'none';
+        document.getElementById('btn-edit-desc').style.display = isAdmin ? 'inline-block' : 'none';
+        document.getElementById('admin-share-upload').style.display = isAdmin ? 'block' : 'none';
+        
+        searchAlbums();
+        if(currentAlbumId) renderDetail();
+    }
+
+    // --- 首页渲染与搜索 ---
+    function searchAlbums() {
+        const keyword = document.getElementById('search-input').value.trim().toLowerCase();
+        const filteredAlbums = albums.filter(album => album.title.toLowerCase().includes(keyword));
+        renderHome(filteredAlbums);
+    }
+
+    function renderHome(dataToRender) {
+        const container = document.getElementById('album-list-container');
+        container.innerHTML = '';
+        if (dataToRender.length === 0) {
+            container.innerHTML = `<div style="text-align:center; color:#999; padding:40px;">暂无相册记录~</div>`;
+            return;
+        }
+
+        dataToRender.forEach(album => {
+            let coverHtml = '<span style="color:#ff69b4; font-size:12px;">待上传</span>';
+            if(album.items.length > 0 && album.items[0].type === 'image') {
+                coverHtml = `<img src="${album.items[0].url}" style="width:100%; height:100%; object-fit:cover; border-radius:10px;">`;
+            } else if (album.items.length > 0 && album.items[0].type === 'video') {
+                coverHtml = `<div style="background:#333; color:white; width:100%; height:100%; display:flex; align-items:center; justify-content:center; border-radius:10px;">▶</div>`;
+            }
+
+            // 🚨 管理员专属：修改名字 & 删除相册 两个按钮
+            let adminActionsHtml = isAdmin ? `
+                <div class="admin-card-actions" onclick="event.stopPropagation();">
+                    <button class="btn-action-sm btn-rename-album" onclick="openRenameModal(${album.id}, '${album.title}')">✏️ 改名</button>
+                    <button class="btn-action-sm btn-delete-album" onclick="deleteAlbum(${album.id})">🗑️ 删除</button>
+                </div>
+            ` : '';
+
+            container.innerHTML += `
+                <div class="album-card glass-panel" onclick="openAlbum(${album.id})">
+                    <div class="album-cover">${coverHtml}</div>
+                    <div class="album-info">
+                        <div class="album-title">${album.title}</div>
+                        <div class="album-date">发布者: ${adminProfile.name}</div>
+                        <div class="album-date">${album.date} · 共 ${album.items.length}/200 张</div>
+                    </div>
+                    ${adminActionsHtml}
+                </div>
+            `;
+        });
+    }
+
+    // --- 新增：修改相册名字逻辑 ---
+    function openRenameModal(id, currentTitle) {
+        targetRenameId = id;
+        document.getElementById('rename-album-input').value = currentTitle;
+        openModal('modal-rename-album');
+    }
+
+    function saveAlbumName() {
+        const newName = document.getElementById('rename-album-input').value.trim();
+        if(!newName) return alert("名字不能为空哦！");
+        
+        const album = albums.find(a => a.id === targetRenameId);
+        if(album) {
+            album.title = newName;
+            saveData(true);
+            searchAlbums(); // 刷新列表
+        }
+        closeModal('modal-rename-album');
+    }
+
+    // --- 详情渲染 ---
+    function openAlbum(id) {
+        currentAlbumId = id;
+        document.getElementById('view-home').style.display = 'none';
+        document.getElementById('view-detail').style.display = 'block';
+        window.scrollTo(0,0);
+        document.getElementById('edit-profile-name').value = adminProfile.name;
+        tempAvatarBase64 = null;
+        document.getElementById('profile-avatar-hint').style.display = 'none';
+        renderDetail();
+    }
+
+    function goBack() {
+        currentAlbumId = null;
+        document.getElementById('view-detail').style.display = 'none';
+        document.getElementById('view-home').style.display = 'block';
+        searchAlbums(); 
+    }
+
+    function renderDetail() {
+        const album = albums.find(a => a.id === currentAlbumId);
+        if(!album) return;
+
+        document.getElementById('feed-avatar').src = adminProfile.avatar;
+        document.getElementById('feed-username').innerText = adminProfile.name;
+        document.getElementById('detail-title-text').innerText = album.title;
+        document.getElementById('album-date-text').innerText = album.date;
+        
+        // 渲染横幅
+        const textDisplay = album.bannerText !== undefined ? album.bannerText : defaultBannerText;
+        document.getElementById('banner-text-display').innerHTML = textDisplay.replace(/\n/g, '<br>');
+        const bannerBox = document.getElementById('album-banner');
+        if (album.bannerBg) {
+            bannerBox.style.backgroundImage = `url(${album.bannerBg})`;
+        } else {
+            bannerBox.style.backgroundImage = 'none';
+            bannerBox.style.backgroundColor = '#ffe4e1';
+        }
+        document.getElementById('edit-banner-textarea').value = textDisplay;
+
+        // 配文
+        const descText = album.feedDesc !== undefined ? album.feedDesc : "记录美好生活...";
+        document.getElementById('feed-desc-text').innerText = descText;
+        document.getElementById('edit-desc-textarea').value = descText;
+
+        // 照片网格
+        const grid = document.getElementById('media-grid');
+        grid.innerHTML = '';
+        album.items.forEach(item => {
+            let mediaHtml = '';
+            let wrapClass = 'grid-item-wrap';
+            if (item.type === 'image') {
+                mediaHtml = `<img src="${item.url}" class="grid-img" onclick="openMedia('${item.url}', 'image')">`;
+            } else if (item.type === 'video') {
+                wrapClass += ' video-mark';
+                mediaHtml = `<div style="width:100%; height:100%; background:#333; border-radius:8px; cursor:pointer;" onclick="openMedia('${item.url}', 'video')"></div>`;
+            }
+            let delBtn = isAdmin ? `<div class="del-item-btn-text" onclick="deleteItem(${item.id})">删除照片</div>` : '';
+            grid.innerHTML += `<div class="${wrapClass}">${mediaHtml}${delBtn}</div>`;
+        });
+        if(isAdmin) { document.querySelectorAll('.del-item-btn-text').forEach(btn => btn.style.display = 'block'); }
+
+        // 互动区
+        const interactionArea = document.getElementById('interaction-area');
+        const likeUsersBox = document.getElementById('like-users-box');
+        const commentsListBox = document.getElementById('comments-list-box');
+        let hasInteractions = false;
+        
+        const likeBtn = document.getElementById('like-btn');
+        if(album.liked) {
+            likeBtn.classList.add('liked');
+            document.getElementById('like-icon').innerText = '❤️';
+            likeUsersBox.style.display = 'block';
+            document.getElementById('like-names').innerText = visitorName;
+            hasInteractions = true;
+        } else {
+            likeBtn.classList.remove('liked');
+            document.getElementById('like-icon').innerText = '🤍';
+            likeUsersBox.style.display = 'none';
+        }
+
+        commentsListBox.innerHTML = '';
+        if(album.comments && album.comments.length > 0) {
+            album.comments.forEach(c => {
+                commentsListBox.innerHTML += `<div class="comment-item"><span class="comment-name">${c.name}: </span>${c.text}</div>`;
+            });
+            hasInteractions = true;
+        }
+        interactionArea.style.display = hasInteractions ? 'block' : 'none';
+
+        // 分享图
+        const shareDisplay = document.getElementById('share-img-display');
+        if(album.shareImg) {
+            shareDisplay.innerHTML = `<img src="${album.shareImg}" style="width:100%; height:100%; object-fit:cover;">`;
+            shareDisplay.onclick = function() { openMedia(album.shareImg, 'image'); };
+        } else {
+            shareDisplay.innerHTML = '🔗';
+            shareDisplay.onclick = null;
+        }
+    }
+
+    // --- 互动与资料行为 ---
+    function toggleLike() {
+        const album = albums.find(a => a.id === currentAlbumId);
+        album.liked = !album.liked;
+        saveData(true); 
+        renderDetail();
+    }
+
+    function addComment() {
+        let text = prompt("发表评论：");
+        if(text && text.trim() !== '') {
+            const album = albums.find(a => a.id === currentAlbumId);
+            if(!album.comments) album.comments = [];
+            let cName = isAdmin ? adminProfile.name + ' (站长)' : visitorName;
+            album.comments.push({ name: cName, text: text.trim() });
+            saveData(true); 
+            renderDetail();
+        }
+    }
+
+    function previewProfileAvatar(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            tempAvatarBase64 = e.target.result;
+            document.getElementById('profile-avatar-hint').style.display = 'block'; 
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function saveProfile() {
+        const newName = document.getElementById('edit-profile-name').value.trim();
+        if(newName) adminProfile.name = newName;
+        if(tempAvatarBase64) adminProfile.avatar = tempAvatarBase64;
+        localStorage.setItem('wechatProfileV11', JSON.stringify(adminProfile));
+        closeModal('modal-edit-profile');
+        searchAlbums(); 
+        if(currentAlbumId) renderDetail(); 
+    }
+
+    function submitMessage() {
+        const msg = document.getElementById('msg-content').value.trim();
+        const contact = document.getElementById('msg-contact').value.trim();
+        if(!msg) return alert("写点什么再发送吧~");
+        const now = new Date();
+        const timeStr = `${now.getMonth()+1}-${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
+        globalMessages.unshift({ text: msg, contact: contact, time: timeStr });
+        localStorage.setItem('wechatMessagesV11', JSON.stringify(globalMessages));
+        alert("✅ 发送成功！站长会看到的~");
+        document.getElementById('msg-content').value = '';
+        document.getElementById('msg-contact').value = '';
+        closeModal('modal-message');
+    }
+
+    function openMessages() {
+        const container = document.getElementById('messages-list-container');
+        container.innerHTML = '';
+        if(globalMessages.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:#999;">暂时还没有收到私信哦~</p>';
+        } else {
+            globalMessages.forEach(m => {
+                let contactInfo = m.contact ? `联系方式: ${m.contact}` : '匿名游客';
+                container.innerHTML += `<div class="msg-list-item"><div class="msg-time">${m.time} | ${contactInfo}</div><div>${m.text}</div></div>`;
+            });
+        }
+        openModal('modal-view-messages');
+    }
+
+    // --- 数据与文件上传 ---
+    function previewBannerBg(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            tempBannerBgBase64 = e.target.result;
+            document.getElementById('bg-upload-hint').style.display = 'block'; 
+        };
+        reader.readAsDataURL(file);
+    }
+    function saveBannerSettings() {
+        const album = albums.find(a => a.id === currentAlbumId);
+        if(!album) return;
+        album.bannerText = document.getElementById('edit-banner-textarea').value;
+        if (tempBannerBgBase64) album.bannerBg = tempBannerBgBase64;
+        saveData(); closeModal('modal-edit-banner'); renderDetail(); 
+    }
+    function saveDescSettings() {
+        const album = albums.find(a => a.id === currentAlbumId);
+        if(!album) return;
+        album.feedDesc = document.getElementById('edit-desc-textarea').value;
+        saveData(); closeModal('modal-edit-desc'); renderDetail();
+    }
+    function uploadShareImg(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const album = albums.find(a => a.id === currentAlbumId);
+            album.shareImg = e.target.result;
+            saveData(); renderDetail(); alert("海报上传成功！");
+        };
+        reader.readAsDataURL(file);
+    }
+    function createNewAlbum() {
+        const title = document.getElementById('new-album-title').value.trim();
+        if(!title) return alert("标题不能为空！");
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')}`;
+        albums.unshift({ id: Date.now(), title: title, date: dateStr, liked: false, comments: [], shareImg: '', bannerText: defaultBannerText, bannerBg: '', feedDesc: '今日份的美好营业啦 ✨', items: [] });
+        saveData(); closeModal('modal-create-album'); document.getElementById('new-album-title').value = ''; searchAlbums();
+    }
+    function handleUpload(event) {
+        const file = event.target.files[0];
+        if(!file) return;
+        const album = albums.find(a => a.id === currentAlbumId);
+        if(album.items.length >= 200) return alert("❌ 容量已达200张！");
+        const type = file.type.startsWith('video/') ? 'video' : 'image';
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            album.items.unshift({ id: Date.now(), type: type, url: e.target.result });
+            saveData(); renderDetail();
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    // 删除相册功能
+    function deleteAlbum(id) {
+        if(confirm("❗ 确定要彻底删除这个相册及内部所有照片吗？")) {
+            albums = albums.filter(a => a.id !== id);
+            saveData(true); searchAlbums();
+        }
+    }
+    function deleteItem(itemId) {
+        if(confirm("确定删除吗？")) {
+            const album = albums.find(a => a.id === currentAlbumId);
+            album.items = album.items.filter(i => i.id !== itemId);
+            saveData(true); renderDetail();
+        }
+    }
+
+    function saveData(silent = false) {
+        try {
+            localStorage.setItem('wechatAppDataV11', JSON.stringify(albums));
+        } catch (e) {
+            if(!silent) alert("❌ 浏览器内存容量达到上限。如果是上传照片失败，请清理手机或删除一些旧图。");
+        }
+    }
+
+    // --- UI 辅助 ---
+    function switchTab(index) {
+        document.querySelectorAll('.tab-item').forEach((el, i) => { el.className = i === index ? 'tab-item active' : 'tab-item'; });
+        document.querySelectorAll('.tab-content').forEach((el, i) => { el.className = i === index ? 'tab-content active' : 'tab-content'; });
+    }
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    function openMedia(url, type) {
+        const container = document.getElementById('viewer-container');
+        if (type === 'image') {
+            container.innerHTML = `<img src="${url}" id="media-content">`;
+        } else {
+            container.innerHTML = `<video src="${url}" controls autoplay id="media-content" style="max-width:100%; max-height:80vh;"></video>`;
+        }
+        document.getElementById('media-viewer').style.display = 'flex';
+    }
+    function closeViewer() {
+        document.getElementById('viewer-container').innerHTML = ''; 
+        document.getElementById('media-viewer').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
